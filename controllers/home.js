@@ -1,6 +1,7 @@
-const fs = require('fs')
-const something = (req, res) => {
-    res.send(fs.readFile(__dirname + "/index.html"))
+const path = require('path')
+
+const comingSoon = (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'))
 }
 
-module.exports = { something }
+module.exports = { comingSoon }

@@ -2,11 +2,11 @@ const jwt = require('jsonwebtoken')
 
 module.exports = (req, res, next) => {
     const token = req.header('panda-auth')
-    if (!token) return res.status(401).send('Access Denied')
+    if (!token) return res.redirect('/auth')
 
     try {
         const verified = jwt.verify(token, process.env.TOKEN_SECRET)
         req.user = verified
         next()
-    } catch (e) { res.status(400).send('Invalid Token')}
+    } catch (e) { res.redirect('/auth')}
 }

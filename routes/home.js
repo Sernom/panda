@@ -1,7 +1,6 @@
 const router = require('express').Router()
-const path = require('path')
-const {something} = require('../controllers/home')
+const { comingSoon } = require('../controllers/home')
 
-router.get('/', something)
+router.get('/', comingSoon)
 
 module.exports = router

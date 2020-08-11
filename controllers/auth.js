@@ -1,55 +1,97 @@
-const User = require('../model/User')
-const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
-const { registerValidation, loginValidation } = require('../library/validation')
+const path = require('path')
+
+const User = require('../model/User')
+
+const checkPassword = require('../library/auth/check-password')
+const hashPassword = require('../library/auth/hash-password')
+
+const { loginValidation, registerValidation } = require('../library/auth/validation')
+
+
+const base = (req, res) => {
+	return res.sendFile(path.join(__dirname, '../public/auth/auth-login.html'))
+}
+
+const signup = (req, res) => {
+	res.sendFile(path.join(__dirname, '../public/auth/auth-signup.html'))
+}
 
 const register = async (req, res) => {
-    try {
-        const { email, password } = req.body
-        // Validate data
-        const { error } = registerValidation(req.body)
-        if (error) return res.status(400).send(error.details[0].message)
-    
-        // Check if the use already exists in database
-        const emailExist = await User.findOne({email})
-    
-        if (emailExist) return res.status(400).send('Email already exists')
+	try {
+		const { error } = registerValidation(req.body)
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10)
-        req.body.password = await bcrypt.hash(password, salt)
+		if (error) return res.status(402).send(error.details[0].message)
 
-        const user = new User(req.body)
-    
-        await user.save()
-    
-        res.send({ user: user._id })
-    } catch (e) {
-        res.status(400).send(e)
-    }
+		const { email, password, name } = req.body
+
+		// Check if the use already exists in database
+		const emailExist = await User.findOne({ email })
+
+		if (emailExist) res.status(422).send('Email already exists')
+
+		// Hash password
+		const { salt, hash } = hashPassword(password)
+
+		const user = new User({
+			email,
+			name,
+			salt,
+			hash
+		})
+
+		await user.save()
+
+		res.send({ user: user._id })
+	} catch (e) {
+		console.log(e)
+		res.status(400).send(e)
+	}
 }
 
 const login = async (req, res) => {
-    try {
-        const { email, password } = req.body
-        // Validate data
-        const { error } = loginValidation(req.body)
-        if (error) return res.status(400).send(error.details[0].message)
+	try {
+		const { error } = loginValidation(req.body)
+		
+		if (error) return res.status(400).send(error.details[0].message)
 
-        const user = await User.findOne({email})
-    
-        if (!user) return res.status(400).send('Email is wrong!')
+		const { email, password } = req.body
 
-        const validPassword = await bcrypt.compare(password, user.password)
+		const user = await User.findOne({ email })
 
-        if (!validPassword) return res.status(400).send('Invalid password!')
+		if (!user) throw new Error('Email is invalid.')
 
-        // Create and assign a token
-        const token = jwt.sign({_id: user._id}, process.env.TOKEN_SECRET)
-        res.header('panda-auth', token).send(token)
-    } catch (e) {
-        res.status(400).send(e)
-    }
+		if (!(await checkPassword(user, password))) throw new Error('no-auth') 
+
+		const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET)
+		res.header('panda-auth', token)
+		res.redirect('/auth/settings')
+
+	} catch (e) {
+		console.log(e.message)
+		if (e.message === 'no-auth') {
+			return res.status(401).json({
+				error: true,
+				name: e.name,
+				message: 'Invalid username and/or password'
+			})
+		}
+
+		res.status(500).json({
+			error: true,
+			name: e.name,
+			message: e.message
+		})
+	}
 }
 
-module.exports = { register, login }
+const logout = (req, res) => {
+	res.removeHeader('panda-auth')
+	res.redirect('/')
+}
+
+const settings = (req, res) => {
+	return res.sendFile(path.join(__dirname, '../public/auth/auth-logout.html'))
+}
+
+module.exports = { register, login, base, logout, signup, settings }
